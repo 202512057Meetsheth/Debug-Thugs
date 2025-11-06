@@ -19,3 +19,17 @@ The game runs directly in your console window with smooth animations, colorful g
 - 🖥️ **Cross-platform** — works on Windows, Linux, and macOS terminals that support ANSI escape codes.
 
 ---
+
+# ⚙️ Setup & Compilation
+
+### 🪟 For Windows
+
+1. **Install g++ (MinGW or similar).**
+2. Place all source files (e.g., `part5.cpp`) in a folder.
+3. Open **Command Prompt** or **PowerShell** in that folder.
+4. Run the following commands:
+
+   ```bash
+   g++ part5.cpp -o part5
+   chcp 65001
+   .\part5.exe
