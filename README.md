@@ -38,9 +38,9 @@ chcp 65001
 Open a terminal in your project directory.
 
 Run:
-
-g++ part5.cpp -o part5
+g++ part5.cpp -o part5\n
 ./part5
+
 
 🕹️ Controls
 Key	Action
