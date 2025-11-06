@@ -29,10 +29,10 @@ The game runs directly in your console window with smooth animations, colorful g
 3. Open **Command Prompt** or **PowerShell** in that folder.
 4. Run the following commands:
 
-   ```bash
-   g++ part5.cpp -o part5
-   chcp 65001
-   .\part5.exe
+g++ part5.cpp -o part5
+chcp 65001
+.\part5.exe
+
 🐧 For Linux / macOS
 
 Open a terminal in your project directory.
