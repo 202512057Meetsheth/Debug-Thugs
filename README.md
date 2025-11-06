@@ -33,3 +33,44 @@ The game runs directly in your console window with smooth animations, colorful g
    g++ part5.cpp -o part5
    chcp 65001
    .\part5.exe
+🐧 For Linux / macOS
+
+Open a terminal in your project directory.
+
+Run:
+
+g++ part5.cpp -o part5
+./part5
+
+🕹️ Controls
+Key	Action
+⬆️ / W	Move Up
+⬇️ / S	Move Down
+⬅️ / A	Move Left
+➡️ / D	Move Right
+P	Pause / Resume
+R	Restart
+Q	Quit Game
+🧩 Game Logic Overview
+
+The snake grows when it eats a fruit.
+
+Every few fruits, new obstacles appear.
+
+The speed increases progressively as you level up or collect speed fruits.
+
+Collision with walls, obstacles, or self results in Game Over.
+
+Dynamic delay and adaptive difficulty are managed using a timing loop with std::chrono.
+
+🧠 Technical Highlights
+
+Fully object-oriented design (CyberSnake class encapsulates gameplay).
+
+Uses ANSI escape codes for color, cursor control, and screen clearing.
+
+Cross-platform keyboard input handling (conio.h on Windows, termios on Unix).
+
+Real-time game loop using std::chrono::steady_clock.
+
+Gradient color effects calculated dynamically with sine/cosine functions.
