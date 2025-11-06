@@ -45,12 +45,12 @@ g++ part5.cpp -o part5
 
 🕹️ Controls
 Key	Action
-⬆️ / W	Move Up
-⬇️ / S	Move Down
-⬅️ / A	Move Left
-➡️ / D	Move Right
-P	Pause / Resume
-R	Restart
+⬆️ / W	Move Up,
+⬇️ / S	Move Down,
+⬅️ / A	Move Left,
+➡️ / D	Move Right,
+P	Pause / Resume,
+R	Restart,
 Q	Quit Game
 🧩 Game Logic Overview
 
