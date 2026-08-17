@@ -131,9 +131,12 @@ public:
         if(rows%2==0)rows--;if(cols%2==0)cols--;
         board.assign(rows,string(cols,' '));
         
-        snakes = vector<PlayerSnake>(1);
+        snakes = vector<PlayerSnake>(2);
         int sr=rows/2,sc=cols/2;
-        for(int i=0;i<5;i++)snakes[0].body.push_back({sr,sc-i});
+        for(int i=0;i<5;i++){
+            snakes[0].body.push_back({sr-2,sc-i});
+            snakes[1].body.push_back({sr+2,sc-i});
+        }
         
         paused=false;level=1;fruitsEaten=0;
         baseDelay=100;curDelay=baseDelay;obstacles.clear();
@@ -206,9 +209,12 @@ private:
             bool grow=(n.r==fruit.p.r&&n.c==fruit.p.c);
             if(!grow)s.body.pop_back();
             
-            bool hit_self=false;
-            for(auto&b:s.body)if(b.r==n.r&&b.c==n.c){s.alive=false;hit_self=true;break;}
-            if(hit_self) continue;
+            bool hit_snake=false;
+            for(auto& os : snakes){
+                for(auto&b:os.body)if(b.r==n.r&&b.c==n.c){s.alive=false;hit_snake=true;break;}
+                if(hit_snake) break;
+            }
+            if(hit_snake) continue;
             
             s.body.push_front(n);
             if(grow){fruitsEaten++;
@@ -229,11 +235,19 @@ private:
         
         if(snakes.size()>0 && !snakes[0].dir_changed){
             Dir c=snakes[0].dir;
-            if(k==KEY_UP||k=='w'||k=='W')c=UP;
-            else if(k==KEY_DOWN||k=='s'||k=='S')c=DOWN;
-            else if(k==KEY_LEFT||k=='a'||k=='A')c=LEFT;
-            else if(k==KEY_RIGHT||k=='d'||k=='D')c=RIGHT;
+            if(k==KEY_UP)c=UP;
+            else if(k==KEY_DOWN)c=DOWN;
+            else if(k==KEY_LEFT)c=LEFT;
+            else if(k==KEY_RIGHT)c=RIGHT;
             if(!isOpposite(snakes[0].dir,c)&&c!=NONE){snakes[0].pending_dir=c;snakes[0].dir_changed=true;}
+        }
+        if(snakes.size()>1 && !snakes[1].dir_changed){
+            Dir c=snakes[1].dir;
+            if(k=='w'||k=='W')c=UP;
+            else if(k=='s'||k=='S')c=DOWN;
+            else if(k=='a'||k=='A')c=LEFT;
+            else if(k=='d'||k=='D')c=RIGHT;
+            if(!isOpposite(snakes[1].dir,c)&&c!=NONE){snakes[1].pending_dir=c;snakes[1].dir_changed=true;}
         }
         return true;}
     static bool isOpposite(Dir a,Dir b){
@@ -261,8 +275,13 @@ private:
                         for(size_t i=0;i<snakes[s_idx].body.size();++i){
                             Pt s=snakes[s_idx].body[i];
                             if(s.r==r&&s.c==c){
-                                if(i==0)buffer+="\x1b[38;2;120;255;230m■";
-                                else buffer+="\x1b[38;2;60;200;150m■";
+                                if(s_idx==0){
+                                    if(i==0)buffer+="\x1b[38;2;120;255;230m■";
+                                    else buffer+="\x1b[38;2;60;200;150m■";
+                                } else {
+                                    if(i==0)buffer+="\x1b[38;2;255;120;230m■";
+                                    else buffer+="\x1b[38;2;200;60;150m■";
+                                }
                                 snakeCell=true;
                                 break;
                             }
@@ -282,9 +301,7 @@ private:
         }
         for(int c=0;c<cols+4;c++)buffer+=neon(c)+"═";
         buffer+="\x1b[0m\n";
-        int total_score = 0;
-        for(auto& s: snakes) total_score += s.score;
-        buffer+="Score:"+to_string(total_score)+"  Level:"+to_string(level);
+        buffer+="P1 Score:"+to_string(snakes[0].score)+"  P2 Score:"+to_string(snakes.size()>1?snakes[1].score:0)+"  Level:"+to_string(level);
         
         bool any_alive = false;
         for(auto& s : snakes) if(s.alive) any_alive = true;
