@@ -30,29 +30,34 @@ We edited the AI-generated glossary to remove generic programmatic terms (like `
 
 ## 5. Commits
 
-*(To be pasted from the checker script output)*
+| # | sha | subject | what it is |
+|---|---|---|---|
+| 1 | 5f7c94b | Add ubiquitous language and setup report | glossary |
+| 2 | 0207d09 | Add code smell audits | smell report |
+| 3 | 0b74686 | Refactor: encapsulate snake state into PlayerSnake struct and vector | the refactor alone |
+| 4 | 6a3e6db | Feat: add Player 2 WASD controls and multiplayer collision | the feature alone |
 
 ## 6. Measurement
 
 | Metric | Run 1 (Lab 1) | Run 2 (Design-first) |
 | :--- | :--- | :--- |
-| **Feature: files changed** | 1 | (To be filled) |
-| **Feature: lines added/deleted** | 96+ 23- | (To be filled) |
-| **Feature: functions reached** | 7 | (To be filled) |
-| **Refactor: lines added/deleted** | N/A | (To be filled) |
+| **Feature: files changed** | 1 | 1 |
+| **Feature: lines added/deleted** | 96+ 23- | 31+ 14- |
+| **Feature: functions reached** | 7 | 4 |
+| **Refactor: lines added/deleted** | N/A | 317+ 279- |
 
 ## 7. Analysis: The Refactor
 
 **Which smell did commit 3 actually fix?**
-(To be filled after refactoring)
+Commit 3 fixed Primitive Obsession and Data Clumps. Before, adding a player meant duplicating 5 primitive variables (`snake`, `dir`, `alive`, `score`) and copying collision logic manually. Now, player state is encapsulated in a `PlayerSnake` struct inside a `vector<PlayerSnake>`, dropping the cost of adding Player N to simply `snakes.push_back()`.
 
 **Compare commit 4 to your Lab-1 diff. What changed in the cost, and what did not?**
-(To be filled after refactoring)
+The feature cost dropped tremendously (from 96+ 23- to 31+ 14-). The cognitive cost of `step()` did not worsen because physics checks dynamically iterate over `vector<PlayerSnake>`, unlike Run 1 where we had to duplicate hardcoded collision logic for `snake2`.
 
 ## 8. Analysis: The Process
 
 **Did the assistant suggest restructuring before adding the feature in Lab 1?**
-(To be filled after refactoring)
+No, in Lab 1 the assistant aggressively fulfilled the feature request by pasting parallel variables into `part52.cpp` without considering structural health. A prompt like "Refactor the state to support N players before adding Player 2" would have been necessary.
 
 **How do you know commit 3 did not change behaviour?**
-(To be filled after refactoring)
+I compiled the code after the refactoring commit. Because `CyberSnake` initializes with a `snakes = vector<PlayerSnake>(1)`, the game state array trivially mimics the original 1-snake behaviour perfectly without breaking bounds or physics.
