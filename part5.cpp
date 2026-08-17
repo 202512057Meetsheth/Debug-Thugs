@@ -5,6 +5,8 @@
 //.\part5.exe
 
 #include <bits/stdc++.h>
+#include <thread>
+#include <algorithm>
 #ifdef _WIN32
   #include <conio.h>
   #include <windows.h>
@@ -23,6 +25,12 @@ struct Pt { int r, c; };
 
 namespace T {
 #ifdef _WIN32
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
+#ifndef DISABLE_NEWLINE_AUTO_RETURN
+#define DISABLE_NEWLINE_AUTO_RETURN 0x0008
+#endif
 bool enableVT() {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hOut == INVALID_HANDLE_VALUE) return false;
@@ -131,23 +139,40 @@ public:
         int max_rows = ts.rows - 6;
         int max_cols = ts.cols - 10;
 
-        rows = clamp(16, 12, max(12, max_rows));    
-        cols = clamp(36, 20, max(20, max_cols));
+        rows = min(max(16, 12), max(12, max_rows));    
+        cols = min(max(36, 20), max(20, max_cols));
         if (rows % 2 == 0) rows--;
         if (cols % 2 == 0) cols--;
 
         board.assign(rows, string(cols, ' '));
         snake.clear();
-        int sr = rows/2, sc = cols/2;
+        snake2.clear();
+        uniform_int_distribution<int> randRow(2, rows - 3);
+        uniform_int_distribution<int> randCol(5, cols - 5);
+        int sr1 = randRow(rng);
+        int sc1 = randCol(rng);
+        int sr2 = randRow(rng);
+        int sc2 = randCol(rng);
+        
+        // Ensure they don't spawn too close to each other
+        while (abs(sr1 - sr2) <= 2 && abs(sc1 - sc2) <= 6) {
+            sr2 = randRow(rng);
+            sc2 = randCol(rng);
+        }
+
         // initial snake length 5
-        for (int i=0;i<5;i++) snake.push_back({sr, sc - i});
+        for (int i=0;i<5;i++) snake.push_back({sr1, sc1 - i});
+        for (int i=0;i<5;i++) snake2.push_back({sr2, sc2 - i});
         dir = RIGHT; pending_dir = RIGHT; dir_changed = false;
+        dir2 = RIGHT; pending_dir2 = RIGHT; dir_changed2 = false;
         alive = true;
+        loser = 0;
         paused = false;
-        score = 0; level = 1; fruitsEaten = 0;
+        score = 0; score2 = 0; level = 1; fruitsEaten = 0;
         baseDelay = 100; curDelay = baseDelay;
         obstacles.clear();
         placeFruit();
+        forceRedraw = true;
         T::clear();
         T::hideCursor();
         #ifdef _WIN32
@@ -169,9 +194,14 @@ public:
                 }
                 draw();
                 dir_changed = false; 
+                dir_changed2 = false;
                 nextTime = now + milliseconds(max(25, curDelay));
             } else {
-                this_thread::sleep_for(milliseconds(2));
+                #ifdef _WIN32
+                Sleep(2);
+                #else
+                usleep(2000);
+                #endif
             }
         }
         cleanup();
@@ -181,14 +211,20 @@ private:
     int rows=16, cols=36;
     vector<string> board;
     deque<Pt> snake;
+    deque<Pt> snake2;
     vector<Pt> obstacles;
     Fruit fruit;
     Dir dir = RIGHT, pending_dir = RIGHT;
+    Dir dir2 = RIGHT, pending_dir2 = RIGHT;
     bool dir_changed = false;
+    bool dir_changed2 = false;
     bool alive = true, paused = false;
-    int score = 0, level = 1, fruitsEaten = 0;
-    int baseDelay = 100, curDelay = 100;
+    int loser = 0;
+    int score = 0, score2 = 0, level = 1, fruitsEaten = 0;
+    int baseDelay = 400, curDelay = 400;
     std::mt19937_64 rng;
+    vector<vector<string>> prevBoard;
+    bool forceRedraw = true;
 
     string neon(int i) {
         int r = (int)(80 + 120.0 * (sin(i*0.5) * 0.5 + 0.5));
@@ -215,14 +251,33 @@ private:
     }
 
     void draw() {
-        T::clear();
+        ostringstream ss;
+        streambuf* old_buf = cout.rdbuf(ss.rdbuf());
+
+        T::moveTo(1, 1);
         auto ts = T::size();
         int top = max(1, (ts.rows - (rows + 6)) / 2);
         int left = max(2, (ts.cols - (cols + 36)) / 2);
 
         int frameW = cols + 4;
         int frameH = rows + 4;
+
+        if (forceRedraw) {
+            T::clear();
+            forceRedraw = false;
+        }
+
         drawFrame(top, left, frameH, frameW);
+
+        // Side HUD parts
+        int hudL = left + frameW + 2;
+        T::moveTo(top + 1, hudL); cout << "\x1b[38;2;200;120;255mCyber - Neon Snake (PRO)\x1b[0m   ";
+        T::moveTo(top + 3, hudL); cout << "\x1b[38;2;120;255;230mP1 Score (Arrows): \x1b[0m" << score << "    ";
+        T::moveTo(top + 4, hudL); cout << "\x1b[38;2;255;150;50mP2 Score (WASD):   \x1b[0m" << score2 << "    ";
+        T::moveTo(top + 5, hudL); cout << "Level: " << level << "   ";
+        T::moveTo(top + 6, hudL); cout << "Speed: Smooth Consistent";
+        T::moveTo(top + 8, hudL); cout << "Fruit: ● normal  ★ bonus  ✦ speed   ";
+        T::moveTo(top + 10, hudL); cout << "P - Pause | R - Restart | Q - Quit   ";
 
         for (int r=0;r<rows;r++){
             for (int c=0;c<cols;c++){
@@ -235,47 +290,54 @@ private:
         // obstacles
         for (auto &o: obstacles) {
             T::moveTo(top+2+o.r, left+2+o.c);
-            cout << "\x1b[48;2;50;10;10m" << "\x1b[38;2;200;80;80m" << "#" << "\x1b[0m";
+            cout << "\x1b[48;2;50;10;10m\x1b[38;2;200;80;80m#\x1b[0m";
         }
 
         // fruit
         T::moveTo(top+2+fruit.p.r, left+2+fruit.p.c);
-        if (fruit.type == 0) cout << "\x1b[38;2;255;120;120m" << "●" << "\x1b[0m";
-        else if (fruit.type == 1) cout << "\x1b[38;2;255;215;90m" << "★" << "\x1b[0m";
-        else cout << "\x1b[38;2;160;240;160m" << "✦" << "\x1b[0m";
+        if (fruit.type == 0) cout << "\x1b[38;2;255;120;120m●\x1b[0m";
+        else if (fruit.type == 1) cout << "\x1b[38;2;255;215;90m★\x1b[0m";
+        else cout << "\x1b[38;2;160;240;160m✦\x1b[0m";
 
+        // snake 1
         for (int i=0;i<snake.size();++i) {
             Pt s = snake[i];
             T::moveTo(top+2+s.r, left+2+s.c);
-            // head
-            if (i==0) cout << "\x1b[38;2;120;255;230m" << "■" << "\x1b[0m";
+            if (i==0) cout << "\x1b[38;2;120;255;230m■\x1b[0m";
             else {
                 int t = (int)( (double)i / max(1,(int)snake.size()) * 120 );
                 int r = max(20, 30 + t), g = max(80, 200 - t), b = max(30, 80 + t/2);
                 char buf[64]; sprintf(buf, "\x1b[38;2;%d;%d;%dm", r,g,b);
-                cout << buf << "■" << "\x1b[0m";
+                cout << buf << "■\x1b[0m";
             }
         }
 
-        // Side HUD
-        int hudL = left + frameW + 2;
-        T::moveTo(top + 1, hudL); cout << "\x1b[38;2;200;120;255mCyber - Neon Snake\x1b[0m";
-        T::moveTo(top + 3, hudL); cout << "Score: " << score;
-        T::moveTo(top + 4, hudL); cout << "Level: " << level;
-        T::moveTo(top + 5, hudL); cout << "Speed: " << (1000 / max(1, curDelay));
-        T::moveTo(top + 7, hudL); cout << "Fruit: ● normal  ★ bonus  ✦ speed";
-        T::moveTo(top + 9, hudL); cout << "Controls: Arrows / WASD";
-        T::moveTo(top + 10, hudL); cout << "P - Pause | R - Restart | Q - Quit";
+        // snake 2
+        for (int i=0;i<snake2.size();++i) {
+            Pt s = snake2[i];
+            T::moveTo(top+2+s.r, left+2+s.c);
+            if (i==0) cout << "\x1b[38;2;255;150;50m■\x1b[0m";
+            else {
+                int t = (int)( (double)i / max(1,(int)snake2.size()) * 120 );
+                int r = max(100, 255 - t/2), g = max(50, 150 + t/2), b = max(20, 50 - t/3);
+                char buf[64]; sprintf(buf, "\x1b[38;2;%d;%d;%dm", r,g,b);
+                cout << buf << "■\x1b[0m";
+            }
+        }
 
         // footer / game over
         if (!alive) {
             T::moveTo(top + frameH + 1, left + 2);
-            cout << "\x1b[1;38;2;255;120;140m GAME OVER — Press R to restart or Q to quit \x1b[0m";
+            if (loser == 1) cout << "\x1b[1;38;2;255;120;140m GAME OVER — Player 1 lost! Press R to restart or Q to quit \x1b[0m";
+            else if (loser == 2) cout << "\x1b[1;38;2;255;120;140m GAME OVER — Player 2 lost! Press R to restart or Q to quit \x1b[0m";
+            else cout << "\x1b[1;38;2;255;120;140m GAME OVER — Draw! Press R to restart or Q to quit \x1b[0m";
         } else if (paused) {
             T::moveTo(top + frameH + 1, left + 2);
-            cout << "\x1b[1;38;2;240;220;120m PAUSED — Press P to resume \x1b[0m";
+            cout << "                                                    ";
         }
 
+        cout.rdbuf(old_buf);
+        cout << ss.str();
         T::flush();
     }
 
@@ -284,6 +346,7 @@ private:
         vector<Pt> empties;
         vector<vector<char>> used(rows, vector<char>(cols, 0));
         for (auto &s : snake) used[s.r][s.c] = 1;
+        for (auto &s : snake2) used[s.r][s.c] = 1;
         for (auto &o : obstacles) used[o.r][o.c] = 1;
         for (int r=0;r<rows;r++) for (int c=0;c<cols;c++) if (!used[r][c]) empties.push_back({r,c});
         if (empties.empty()) return;
@@ -301,6 +364,7 @@ private:
             vector<Pt> empties;
             vector<vector<char>> used(rows, vector<char>(cols, 0));
             for (auto &s : snake) used[s.r][s.c] = 1;
+            for (auto &s : snake2) used[s.r][s.c] = 1;
             for (auto &o : obstacles) used[o.r][o.c] = 1;
             for (int r=0;r<rows;r++) for (int c=0;c<cols;c++) if (!used[r][c]) empties.push_back({r,c});
             if (empties.empty()) return;
@@ -311,6 +375,7 @@ private:
 
     void step() {
         dir = pending_dir;
+        dir2 = pending_dir2;
 
         Pt head = snake.front();
         Pt nxt = head;
@@ -321,39 +386,71 @@ private:
             case RIGHT: nxt.c++; break;
             default: break;
         }
+
+        Pt head2 = snake2.front();
+        Pt nxt2 = head2;
+        switch (dir2) {
+            case UP:    nxt2.r--; break;
+            case DOWN:  nxt2.r++; break;
+            case LEFT:  nxt2.c--; break;
+            case RIGHT: nxt2.c++; break;
+            default: break;
+        }
         
         // wall or obstacle collision
-        if (nxt.r < 0 || nxt.r >= rows || nxt.c < 0 || nxt.c >= cols) { alive = false; return; }
-        for (auto &o : obstacles) if (o.r == nxt.r && o.c == nxt.c) { alive = false; return; }
+        if (nxt.r < 0 || nxt.r >= rows || nxt.c < 0 || nxt.c >= cols) { alive = false; loser = 1; }
+        if (nxt2.r < 0 || nxt2.r >= rows || nxt2.c < 0 || nxt2.c >= cols) { alive = false; loser = (loser == 1 ? 3 : 2); }
+        for (auto &o : obstacles) {
+            if (o.r == nxt.r && o.c == nxt.c) { alive = false; loser = 1; }
+            if (o.r == nxt2.r && o.c == nxt2.c) { alive = false; loser = (loser == 1 ? 3 : 2); }
+        }
+        if (!alive) return;
 
         // will the snake grow this tick?
         bool grow = (nxt.r == fruit.p.r && nxt.c == fruit.p.c);
+        bool grow2 = (nxt2.r == fruit.p.r && nxt2.c == fruit.p.c);
+
+        if (grow && grow2) {
+            grow2 = false; // tie breaker to P1
+        }
 
         // if not growing, the tail cell will be vacated BEFORE checking self-collision
-        if (!grow) {
-            snake.pop_back();               
-        }
+        if (!grow) snake.pop_back();               
+        if (!grow2) snake2.pop_back();
 
         // self-collision 
         for (const auto &s : snake) {
-            if (s.r == nxt.r && s.c == nxt.c) { alive = false; return; }
+            if (s.r == nxt.r && s.c == nxt.c) { alive = false; loser = 1; }
+            if (s.r == nxt2.r && s.c == nxt2.c) { alive = false; loser = 2; }
         }
+        for (const auto &s : snake2) {
+            if (s.r == nxt.r && s.c == nxt.c) { alive = false; loser = 1; }
+            if (s.r == nxt2.r && s.c == nxt2.c) { alive = false; loser = 2; }
+        }
+        // head to head collision
+        if (nxt.r == nxt2.r && nxt.c == nxt2.c) { alive = false; loser = 3; }
+        
+        if (!alive) return;
 
         // place new head
         snake.push_front(nxt);
+        snake2.push_front(nxt2);
 
         // handle fruit
-        if (grow) {
+        if (grow || grow2) {
             fruitsEaten++;
-            if (fruit.type == 0) score += 10;
-            else if (fruit.type == 1) score += 25;
-            else { // speed fruit
-                score += 8;
-                curDelay = max(30, curDelay - 15);
+            int pts = 10;
+            if (fruit.type == 1) pts = 25;
+            else if (fruit.type == 2) pts = 8;
+            
+            if (grow) score += pts;
+            else score2 += pts;
+            
+            if (fruit.type == 2) {
+                // consistent speed, no delay reduction
             }
             if (fruitsEaten % 4 == 0) {
                 level++;
-                curDelay = max(30, curDelay - 6);
             }
             placeFruit();
             maybeAddObstacle();
@@ -370,18 +467,30 @@ private:
         if (!alive) return true;
         if (paused) return true;
 
-        if (dir_changed) return true;
-
-        Dir candidate = dir;
-        if (key == KEY_UP || key == 'w' || key == 'W') candidate = UP;
-        else if (key == KEY_DOWN || key == 's' || key == 'S') candidate = DOWN;
-        else if (key == KEY_LEFT || key == 'a' || key == 'A') candidate = LEFT;
-        else if (key == KEY_RIGHT || key == 'd' || key == 'D') candidate = RIGHT;
-
-        // prevent 180-degree turn
-        if (!isOpposite(dir, candidate) && candidate != NONE) {
-            pending_dir = candidate;
-            dir_changed = true;
+        if (key == KEY_UP || key == KEY_DOWN || key == KEY_LEFT || key == KEY_RIGHT) {
+            if (dir_changed) return true;
+            Dir candidate = dir;
+            if (key == KEY_UP) candidate = UP;
+            else if (key == KEY_DOWN) candidate = DOWN;
+            else if (key == KEY_LEFT) candidate = LEFT;
+            else if (key == KEY_RIGHT) candidate = RIGHT;
+            
+            if (!isOpposite(dir, candidate) && candidate != NONE) {
+                pending_dir = candidate;
+                dir_changed = true;
+            }
+        } else {
+            if (dir_changed2) return true;
+            Dir candidate2 = dir2;
+            if (key == 'w' || key == 'W') candidate2 = UP;
+            else if (key == 's' || key == 'S') candidate2 = DOWN;
+            else if (key == 'a' || key == 'A') candidate2 = LEFT;
+            else if (key == 'd' || key == 'D') candidate2 = RIGHT;
+            
+            if (!isOpposite(dir2, candidate2) && candidate2 != NONE) {
+                pending_dir2 = candidate2;
+                dir_changed2 = true;
+            }
         }
         return true;
     }
@@ -407,7 +516,11 @@ private:
         while (true) {
             int k = getKeyNonBlocking();
             if (k != 0) break;
-            this_thread::sleep_for(milliseconds(10));
+            #ifdef _WIN32
+            Sleep(10);
+            #else
+            usleep(10000);
+            #endif
         }
     }
 
