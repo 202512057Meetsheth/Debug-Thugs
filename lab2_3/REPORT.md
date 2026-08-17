@@ -14,19 +14,19 @@ We edited the AI-generated glossary to remove generic programmatic terms (like `
 
 | Smell | Introduced | Untouched | Removed |
 | :--- | :--- | :--- | :--- |
-| **Large Class** |  |  |  |
-| **Primitive Obsession** |  |  |  |
-| **Data Clumps** |  |  |  |
-| **Duplicate Code** |  |  |  |
-| **Feature Envy** |  |  |  |
+| **Data Clumps / Primitive Obsession** | 1 (`snake2`, `dir2`, etc.) | 1 (`snake`, `dir`) | 0 |
+| **Duplicate Code** | 2 (`step()`, `drawSmooth()`) | 1 (`placeFruit()`) | 0 |
+| **Long Method** | 1 (`step()`) | 1 (`drawSmooth()`) | 0 |
+| **Shotgun Surgery** | 1 (Adding players) | 0 | 0 |
+| **Large Class** | 0 | 1 (`CyberSnake`) | 0 |
 
 ## 4. Rejected Candidates
 
 | Smell | File:Line | Why we rejected it |
 | :--- | :--- | :--- |
-| (To be filled) |  |  |
-| (To be filled) |  |  |
-| (To be filled) |  |  |
+| **Large Class** | `part52.cpp:114` | At only ~200 lines, splitting `CyberSnake` into separate Input, Render, and Engine classes is severe over-engineering and Speculative Generality. |
+| **Long Method** | `part52.cpp:209` | `drawSmooth` is 49 lines, but it's a single, highly cohesive string-buffering pipeline; splitting it would break the top-to-bottom mental model of the screen rendering. |
+| **Data Clumps** | `part52.cpp:112` | The `Fruit` struct groups `Pt` and `type`. While it's a clump, upgrading it to a full Class with methods is unnecessary since it has no internal behavior. |
 
 ## 5. Commits
 
