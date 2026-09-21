@@ -120,9 +120,28 @@ struct Fruit {
     int type; 
 };
 
+class IRandomSource {
+public:
+    virtual ~IRandomSource() = default;
+    virtual int getInt(int minVal, int maxVal) = 0;
+};
+
+class StandardRandomSource : public IRandomSource {
+public:
+    StandardRandomSource() : rng((uint64_t)steady_clock::now().time_since_epoch().count()) {}
+    int getInt(int minVal, int maxVal) override {
+        uniform_int_distribution<int> dist(minVal, maxVal);
+        return dist(rng);
+    }
+private:
+    std::mt19937_64 rng;
+};
+
 class CyberSnake {
 public:
-    CyberSnake() : rng((uint64_t)steady_clock::now().time_since_epoch().count()) {
+    CyberSnake(IRandomSource* customRng = nullptr)
+        : defaultRng(customRng ? nullptr : new StandardRandomSource()),
+          rngSource(customRng ? customRng : defaultRng.get()) {
         init();
     }
 
@@ -188,7 +207,8 @@ private:
     bool alive = true, paused = false;
     int score = 0, level = 1, fruitsEaten = 0;
     int baseDelay = 100, curDelay = 100;
-    std::mt19937_64 rng;
+    std::unique_ptr<StandardRandomSource> defaultRng;
+    IRandomSource* rngSource;
 
     string neon(int i) {
         int r = (int)(80 + 120.0 * (sin(i*0.5) * 0.5 + 0.5));
@@ -287,10 +307,9 @@ private:
         for (auto &o : obstacles) used[o.r][o.c] = 1;
         for (int r=0;r<rows;r++) for (int c=0;c<cols;c++) if (!used[r][c]) empties.push_back({r,c});
         if (empties.empty()) return;
-        uniform_int_distribution<int> d(0, (int)empties.size()-1);
-        Pt p = empties[d(rng)];
-        uniform_int_distribution<int> t(0,99);
-        int tt = t(rng);
+        int idx = rngSource->getInt(0, (int)empties.size() - 1);
+        Pt p = empties[idx];
+        int tt = rngSource->getInt(0, 99);
         int type = (tt < 75 ? 0 : (tt < 90 ? 1 : 2)); 
         fruit = {p, type};
     }
@@ -304,8 +323,8 @@ private:
             for (auto &o : obstacles) used[o.r][o.c] = 1;
             for (int r=0;r<rows;r++) for (int c=0;c<cols;c++) if (!used[r][c]) empties.push_back({r,c});
             if (empties.empty()) return;
-            uniform_int_distribution<int> d(0,(int)empties.size()-1);
-            obstacles.push_back(empties[d(rng)]);
+            int idx = rngSource->getInt(0, (int)empties.size() - 1);
+            obstacles.push_back(empties[idx]);
         }
     }
 
